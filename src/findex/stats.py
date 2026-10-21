@@ -37,7 +37,11 @@ def measure_pipeline(data_dir: Path, is_lazy: bool):
     tracemalloc.stop()
 
     print(f"Документів: {doc_count} | Токенів: {token_count} | Словник: {len(term_frequencies)}")
-    print(f"Топ-5 термів: {term_frequencies.most_common(5)}")
+
+    print("Топ-50 термів:")
+    for i, (word, freq) in enumerate(term_frequencies.most_common(50), 1):
+        print(f"{i}. {word} ({freq})")
+
     print(f"Час: {elapsed_time:.4f} сек | Пікова пам'ять: {peak_mem / 1024 / 1024:.2f} MB\n")
 
 def main():
