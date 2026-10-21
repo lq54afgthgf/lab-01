@@ -6,16 +6,17 @@ import tracemalloc
 from findex.types import InvertedIndex
 from findex.tokenize import tokenize
 from findex.store import save_index
+from findex.corpus import iter_documents
 
 def build_index_cli():
     parser = argparse.ArgumentParser(description="Побудова інвертованого індексу")
     parser.add_argument("data_dir", help="Папка з текстовим корпусом")
-    parser.add_argument("--out", required=True, help="Файл для збереження індексу (наприклад, index.bin)")
+    parser.add_argument("--out", required=True, help="Файл для збереження індексу")
+    # Додаємо прапорець сюди, де він і має бути
+    parser.add_argument("--positions", action="store_true", help="Зберігати позиції токенів")
     args = parser.parse_args()
 
     print(f"Починаємо побудову індексу з {args.data_dir}...")
-
-    # Вмикаємо відстеження пам'яті
     tracemalloc.start()
     start_time = time.perf_counter()
 
@@ -23,21 +24,26 @@ def build_index_cli():
     data_path = pathlib.Path(args.data_dir)
     doc_id = 0
 
-    # Обходимо всі txt файли в папці
-    for file_path in data_path.glob("*.txt"):
-        # Відкриваємо кожен файл самостійно
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            # Створюємо лінивий потік токенів прямо з рядків цього файлу
-            tokens_stream = (token for line in f if line.strip() for token in tokenize(line))
+    # Використовуємо iter_documents для розбиття дампу на окремі статті
+    for doc_text in iter_documents(data_path):
+        # Перетворюємо генератор на список, щоб надійно передати в індекс
+        tokens_list = list(tokenize(doc_text))
 
-            # Передаємо цей потік прямо в метод індексу
-            index.add_document(doc_id, tokens_stream, str(file_path), file_path.name)
+        # Викликаємо правильний метод ВЖЕ з прапорцем
+        index.add_document(
+            doc_id=doc_id,
+            tokens=tokens_list,
+            path="wiki_dump",
+            title=f"Article_{doc_id}",
+            store_positions=args.positions
+        )
 
         doc_id += 1
+        if doc_id % 50000 == 0:
+            print(f"Проіндексовано {doc_id} статей...")
 
-    # Зупиняємо таймер і заміряємо пам'ять
     elapsed = time.perf_counter() - start_time
-    current_mem, peak_mem = tracemalloc.get_traced_memory()
+    _, peak_mem = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
     print(f"Індекс побудовано за {elapsed:.2f} сек.")

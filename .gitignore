@@ -11,3 +11,4 @@ wheels/
 .venv
 index.bin
 data/
+*.bin
