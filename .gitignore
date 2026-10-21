@@ -9,3 +9,5 @@ wheels/
 /data/
 # Virtual environments
 .venv
+index.bin
+data/
