@@ -3,7 +3,7 @@ import pathlib
 import time
 import tracemalloc
 
-from findex.types import InvertedIndex
+from findex.types import Index
 from findex.tokenize import tokenize
 from findex.store import save_index
 from findex.corpus import iter_documents
@@ -20,7 +20,7 @@ def build_index_cli():
     tracemalloc.start()
     start_time = time.perf_counter()
 
-    index = InvertedIndex()
+    index = Index()
     data_path = pathlib.Path(args.data_dir)
     doc_id = 0
 

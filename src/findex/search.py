@@ -1,151 +1,130 @@
 import argparse
 import time
-import tracemalloc
-from findex.store import load_index
-from findex.tokenize import tokenize
+import functools
+import pathlib
+import itertools
 
-# ДВОВКАЗІВНИКОВІ АЛГОРИТМИ (O(N+M))
+from findex.store import open_index
+from findex.query import parse_query
+from findex.ranking import BM25, TfIdf, rank_documents
+from findex.corpus import iter_documents
 
-def merge_and(list1, list2):
-    """Перетин (AND): зберігаємо спільні елементи."""
-    result = []
-    i, j = 0, 0
-    while i < len(list1) and j < len(list2):
-        if list1[i].doc_id == list2[j].doc_id:
-            result.append(list1[i])
-            i += 1
-            j += 1
-        elif list1[i].doc_id < list2[j].doc_id:
-            i += 1
-        else:
-            j += 1
-    return result
+# --- ДЕКОРАТОРИ ---
 
-def merge_or(list1, list2):
-    """Об'єднання (OR): зберігаємо елементи з обох списків без дублікатів."""
-    result = []
-    i, j = 0, 0
-    while i < len(list1) and j < len(list2):
-        if list1[i].doc_id == list2[j].doc_id:
-            result.append(list1[i])
-            i += 1
-            j += 1
-        elif list1[i].doc_id < list2[j].doc_id:
-            result.append(list1[i])
-            i += 1
-        else:
-            result.append(list2[j])
-            j += 1
-    # Додаємо залишки
-    result.extend(list1[i:])
-    result.extend(list2[j:])
-    return result
+def timed(fn):
+    """Декоратор для заміру часу виконання функції."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        t0 = time.perf_counter()
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            elapsed = time.perf_counter() - t0
+            print(f"[{fn.__name__}] виконано за {elapsed * 1000:.2f} ms")
+    return wrapper
 
-def merge_not(list1, list2):
-    """Різниця (NOT): елементи з першого списку, яких немає в другому."""
-    result = []
-    i, j = 0, 0
-    while i < len(list1) and j < len(list2):
-        if list1[i].doc_id == list2[j].doc_id:
-            i += 1
-            j += 1
-        elif list1[i].doc_id < list2[j].doc_id:
-            result.append(list1[i])
-            i += 1
-        else:
-            j += 1
-    # Додаємо залишки з першого списку
-    result.extend(list1[i:])
-    return result
+# Глобальна змінна для доступу до індексу з кешованої функції
+_GLOBAL_INDEX = None
 
-def search_merge(index, terms, mode="AND"):
-    """Пошук через двовказівниковий зсув."""
-    if not terms:
-        return []
+@functools.lru_cache(maxsize=256)
+@timed
+def evaluate_query_cached(query_str: str) -> frozenset[int]:
+    """
+    Пошук документів за запитом із кешуванням.
+    @lru_cache запам'ятає результат, і повторний виклик не буде обчислювати дерево.
+    """
+    tree = parse_query(query_str)
+    # Зберігаємо результат як frozenset, бо звичайний set не кешується (mutable)
+    return frozenset(tree.evaluate(_GLOBAL_INDEX))
 
-    result_postings = index.postings.get(terms[0], [])
+# --- СНІПЕТИ ---
 
-    for term in terms[1:]:
-        next_postings = index.postings.get(term, [])
-        if mode == "AND":
-            result_postings = merge_and(result_postings, next_postings)
-            if not result_postings: break
-        elif mode == "OR":
-            result_postings = merge_or(result_postings, next_postings)
-        elif mode == "NOT":
-            result_postings = merge_not(result_postings, next_postings)
-            if not result_postings: break
+def get_snippet(text: str, query_terms: set[str], window: int = 80) -> str:
+    """Знаходить перше входження слова із запиту і повертає ±80 символів навколо нього."""
+    text_lower = text.lower()
+    best_pos = -1
+    matched_term = ""
 
-    return [p.doc_id for p in result_postings]
+    for term in query_terms:
+        pos = text_lower.find(term)
+        if pos != -1:
+            best_pos = pos
+            matched_term = term
+            break
 
-# ПОШУК ЧЕРЕЗ МНОЖИНИ (SET)
+    if best_pos == -1:
+        return text[:window * 2] + "..."
 
-def search_set(index, terms, mode="AND"):
-    """Пошук через вбудовані множини Python."""
-    if not terms:
-        return []
+    start = max(0, best_pos - window)
+    end = min(len(text), best_pos + len(matched_term) + window)
 
-    result_docs = {p.doc_id for p in index.postings.get(terms[0], [])}
+    snippet = text[start:end].replace('\n', ' ')
 
-    for term in terms[1:]:
-        next_docs = {p.doc_id for p in index.postings.get(term, [])}
-        if mode == "AND":
-            result_docs &= next_docs
-            if not result_docs: break
-        elif mode == "OR":
-            result_docs |= next_docs
-        elif mode == "NOT":
-            result_docs -= next_docs
-            if not result_docs: break
+    # Проста підсвітка терміну (ANSI кольори для терміналу)
+    # \033[93m - жовтий колір, \033[1m - жирний, \033[0m - скидання
+    highlighted = snippet.replace(
+        text[best_pos:best_pos+len(matched_term)],
+        f"\033[93m\033[1m{text[best_pos:best_pos+len(matched_term)]}\033[0m"
+    )
 
-    return list(result_docs)
+    return f"...{highlighted}..."
 
-# CLI ІНТЕРФЕЙС
+# --- ГОЛОВНИЙ СКРИПТ ---
 
-def search_cli():
-    parser = argparse.ArgumentParser(description="Булевий пошук по інвертованому індексу")
-    parser.add_argument("index_file", help="Шлях до файлу індексу (наприклад, index.bin)")
-    parser.add_argument("query", help="Пошуковий запит (слова через пробіл)")
-    parser.add_argument("--mode", choices=["AND", "OR", "NOT"], default="AND", help="Логічний оператор для слів запиту")
-    parser.add_argument("--engine", choices=["merge", "set"], default="merge", help="Рушій пошуку")
+@timed
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("index_path", help="Шлях до файлу індексу")
+    parser.add_argument("corpus_path", help="Шлях до корпусу (для витягування сніпетів)")
+    parser.add_argument("query", help="Запит (напр., 'python AND (async OR await)')")
+    parser.add_argument("--scorer", choices=["bm25", "tfidf"], default="bm25")
     args = parser.parse_args()
 
-    tracemalloc.start()
-    start_time = time.perf_counter()
+    global _GLOBAL_INDEX
 
-    print(f"Завантаження індексу з {args.index_file}...")
-    index = load_index(args.index_file)
-    load_time = time.perf_counter() - start_time
+    print(f"Завантаження індексу з {args.index_path}...")
+    # Використання Context Manager
+    with open_index(args.index_path) as index:
+        _GLOBAL_INDEX = index
+        print(f"Індекс завантажено. Документів: {index.num_docs}, Термінів: {len(index)}")
 
-    query_terms = list(tokenize(args.query))
-    print(f"Запит нормалізовано до: {query_terms} (Режим: {args.mode})")
+        # 1. Знаходимо відповідні документи (перший виклик)
+        print("\n--- Перший виклик (має виконати AST-дерево) ---")
+        matching_docs = evaluate_query_cached(args.query)
 
-    search_start = time.perf_counter()
-    if args.engine == "merge":
-        doc_ids = search_merge(index, query_terms, args.mode)
-    else:
-        doc_ids = search_set(index, query_terms, args.mode)
-    search_time = time.perf_counter() - search_start
+        # 2. Робимо повторний виклик, щоб показати роботу кешу (Cache Hit)
+        print("\n--- Другий виклик (має підтягнутись з кешу миттєво) ---")
+        matching_docs = evaluate_query_cached(args.query)
 
-    current_mem, peak_mem = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
+        if not matching_docs:
+            print("\nНічого не знайдено.")
+            return
 
-    print("\n--- Результати ---")
-    if not doc_ids:
-        print("Нічого не знайдено.")
-    else:
-        print(f"Знайдено документів: {len(doc_ids)}")
-        # Виводимо перші 5 для лаконічності
-        for d_id in doc_ids[:5]:
-            meta = index.doc_meta[d_id]
-            print(f"Doc {d_id} | Довжина: {meta.length} | Файл: {meta.path}")
-        if len(doc_ids) > 5:
-            print("...")
+        # 3. Ранжування
+        scorer = BM25() if args.scorer == "bm25" else TfIdf()
 
-    print("\n--- Статистика ---")
-    print(f"Час завантаження індексу: {load_time:.4f} сек.")
-    print(f"Час пошуку ({args.engine}): {search_time:.6f} сек.")
-    print(f"Пікова пам'ять: {peak_mem / (1024 * 1024):.2f} MB")
+        # Витягуємо чисті слова із запиту для ранжування (без AND, OR, NOT)
+        query_words = {w.strip('()"').lower() for w in args.query.split() if w not in ("AND", "OR", "NOT")}
+
+        top_results = rank_documents(query_words, matching_docs, index, scorer, top_k=5)
+
+        print(f"\nЗнайдено документів: {len(matching_docs)}. Топ-5 результатів ({args.scorer.upper()}):")
+
+        # 4. Витягуємо оригінальні тексти для сніпетів
+        # (Проходимо по корпусу і забираємо тільки тексти переможців)
+        top_doc_ids = {res.doc_id for res in top_results}
+        doc_texts = {}
+        for doc_id, text in enumerate(iter_documents(pathlib.Path(args.corpus_path))):
+            if doc_id in top_doc_ids:
+                doc_texts[doc_id] = text
+            if len(doc_texts) == len(top_doc_ids):
+                break
+
+        # 5. Виводимо результати
+        for rank, res in enumerate(top_results, 1):
+            snippet = get_snippet(doc_texts.get(res.doc_id, ""), query_words)
+            print(f"\n{rank}. Doc {res.doc_id} | Title: {res.title} | Score: {res.score:.4f}")
+            print(f"   {snippet}")
 
 if __name__ == "__main__":
-    search_cli()
+    main()
