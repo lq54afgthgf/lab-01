@@ -9,7 +9,6 @@ from findex.tokenize import tokenize, tokenize_greedy
 
 def measure_pipeline(data_dir: Path, is_lazy: bool) -> None:
     tracemalloc.start()
-    start_time = time.perf_counter()
 
     # Явно вказуємо, що Counter рахуватиме рядки (str)
     term_frequencies: Counter[str] = Counter()
