@@ -1,8 +1,8 @@
 import pytest
+
 from unittest.mock import patch
 from findex.types import Index, DocMeta
 from findex.store import save_index, load_index, open_index
-from findex.search import main as search_main
 from findex.stats import main as stats_main
 
 @pytest.mark.parametrize("filename", ["index.bin", "data.pickle", "test_idx.idx"])
