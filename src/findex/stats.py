@@ -31,7 +31,7 @@ def measure_pipeline(data_dir: Path, is_lazy: bool) -> None:
             term_frequencies.update(tokens)
 
     # Вивід результатів ТУТ, всередині measure_pipeline
-    current, peak = tracemalloc.get_traced_memory()
+    _, peak = tracemalloc.get_traced_memory()
     print(f"[{'Lazy' if is_lazy else 'Greedy'}] Docs: {doc_count}, Tokens: {token_count}, Peak Memory: {peak / 10**6:.3f} MB")
 
 # Виводимо топ 50 слів (лише один раз, для лінивого підходу)
