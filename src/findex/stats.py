@@ -1,5 +1,4 @@
 import sys
-import time
 import tracemalloc
 
 from collections import Counter
