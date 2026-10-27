@@ -15,8 +15,6 @@ def build_index_cli():
     # Додаємо прапорець сюди, де він і має бути
     parser.add_argument("--positions", action="store_true", help="Зберігати позиції токенів")
     args = parser.parse_args()
-
-    print(f"Починаємо побудову індексу з {args.data_dir}...")
     tracemalloc.start()
     start_time = time.perf_counter()
 
@@ -40,20 +38,10 @@ def build_index_cli():
 
         doc_id += 1
         if doc_id % 50000 == 0:
-            print(f"Проіндексовано {doc_id} статей...")
-
     elapsed = time.perf_counter() - start_time
     _, peak_mem = tracemalloc.get_traced_memory()
     tracemalloc.stop()
-
-    print(f"Індекс побудовано за {elapsed:.2f} сек.")
-    print(f"Пікова пам'ять: {peak_mem / (1024 * 1024):.2f} MB")
-    print(f"Проіндексовано документів: {len(index.doc_meta)}")
-    print(f"Унікальних термів у словнику: {len(index.postings)}")
-
-    print(f"Збереження у {args.out}...")
     save_index(index, args.out)
-    print("Індекс успішно збережено!")
 
 if __name__ == "__main__":
     build_index_cli()

@@ -1,18 +1,18 @@
 import sys
 import time
 import tracemalloc
+
 from collections import Counter
 from pathlib import Path
-
 from findex.corpus import iter_documents, get_documents_greedy
 from findex.tokenize import tokenize, tokenize_greedy
 
-def measure_pipeline(data_dir: Path, is_lazy: bool):
-    print(f"--- Запуск {'ЛІНИВОГО' if is_lazy else 'ЖАДІБНОГО'} конвеєра ---")
+def measure_pipeline(data_dir: Path, is_lazy: bool) -> None:
     tracemalloc.start()
     start_time = time.perf_counter()
 
-    term_frequencies = Counter()
+    # Явно вказуємо, що Counter рахуватиме рядки (str)
+    term_frequencies: Counter[str] = Counter()
     doc_count = 0
     token_count = 0
 
@@ -36,18 +36,12 @@ def measure_pipeline(data_dir: Path, is_lazy: bool):
     _, peak_mem = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
-    print(f"Документів: {doc_count} | Токенів: {token_count} | Словник: {len(term_frequencies)}")
-    print(f"Топ-5 термів: {term_frequencies.most_common(5)}")
-    print(f"Час: {elapsed_time:.4f} сек | Пікова пам'ять: {peak_mem / 1024 / 1024:.2f} MB\n")
-
-def main():
+def main() -> None:
     # Читаємо шлях до папки з аргументів або беремо "data" за замовчуванням
     data_path = sys.argv[1] if len(sys.argv) > 1 else "data"
     data_dir = Path(data_path)
 
     if not data_dir.exists() or not data_dir.is_dir():
-        print(f"Помилка: Папки '{data_dir}' не існує або це не папка.")
-        print("Створіть папку data/ та покладіть туди текстові файли (.txt).")
         return
 
     measure_pipeline(data_dir, is_lazy=True)

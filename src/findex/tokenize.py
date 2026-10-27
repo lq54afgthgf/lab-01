@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from typing import Generator
+from collections.abc import Generator
 
 # Регулярний вираз: шукає межі слова (\b), бере літери/цифри (\w),
 # і дозволяє дефіси або апострофи всередині слова.

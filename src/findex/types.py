@@ -16,61 +16,50 @@ class DocMeta:
     path: str
     title: str = ""
 
-# Наслідуємо Mapping, щоб отримати багато словникових методів безкоштовно (.keys(), .items(), .get())
-class Index(collections.abc.Mapping):
-    def __init__(self):
+# У strict-режимі Mapping вимагає зазначення типів [Ключ, Значення]
+class Index(collections.abc.Mapping[str, list[Posting]]):
+    def __init__(self) -> None:
         self.postings: dict[str, list[Posting]] = collections.defaultdict(list)
         self.doc_meta: dict[int, DocMeta] = {}
         self.doc_lengths: dict[int, int] = {}
 
-    # --- DUNDER МЕТОДИ (Data Model) ---
-
     def __len__(self) -> int:
-        """Дозволяє викликати len(index) — повертає кількість унікальних термінів."""
         return len(self.postings)
 
     def __iter__(self) -> Iterator[str]:
-        """Дозволяє ітеруватись: for term in index: ..."""
         return iter(self.postings)
 
     def __getitem__(self, term: str) -> list[Posting]:
-        """Дозволяє звертатись як до словника: index['python']. Викидає KeyError, якщо терміну немає."""
         if term not in self.postings:
             raise KeyError(term)
         return self.postings[term]
 
-    def __contains__(self, term: str) -> bool:
-        """Дозволяє перевіряти наявність: 'python' in index"""
+    def __contains__(self, term: object) -> bool:
+        # Mapping вимагає тип object для ключа в __contains__
+        if not isinstance(term, str):
+            return False
         return term in self.postings
 
     def __repr__(self) -> str:
-        """Гарне відображення при print(index) або в REPL."""
         return f"Index(terms={len(self)}, docs={self.num_docs})"
-
-    # --- ВЛАСТИВОСТІ (Properties) ---
 
     @property
     def num_docs(self) -> int:
-        """Обчислювана властивість. Виклик без дужок: index.num_docs"""
         return len(self.doc_meta)
 
     @functools.cached_property
     def avg_doc_length(self) -> float:
-        """
-        Кешується після першого виклику (вкрай важливо для швидкості алгоритму BM25).
-        """
         if not self.num_docs:
             return 0.0
         return sum(self.doc_lengths.values()) / self.num_docs
 
     def df(self, term: str) -> int:
-        """Document Frequency — кількість документів, у яких зустрічається термін."""
         return len(self.postings.get(term, []))
 
-    # Метод з Лаби 2 для побудови
-    def add_document(self, doc_id: int, tokens: Iterable[str], path: str, title: str = "", store_positions: bool = False):
+    def add_document(self, doc_id: int, tokens: Iterable[str], path: str, title: str = "", store_positions: bool = False) -> None:
         if store_positions:
-            term_positions = collections.defaultdict(list)
+            # Явно типізуємо defaultdict
+            term_positions: dict[str, list[int]] = collections.defaultdict(list)
             for pos, term in enumerate(tokens):
                 term_positions[term].append(pos)
 
