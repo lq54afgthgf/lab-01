@@ -17,15 +17,10 @@ R = TypeVar('R')
 # --- ДЕКОРАТОРИ ---
 
 def timed(fn: Callable[P, R]) -> Callable[P, R]:
-    """Декоратор для заміру часу виконання функції."""
+    """Декоратор (тепер просто пропускає виклик, бо логування видалено)."""
     @functools.wraps(fn)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-        t0 = time.perf_counter()
-        try:
-            return fn(*args, **kwargs)
-        finally:
-            elapsed = time.perf_counter() - t0
-            name = getattr(fn, '__name__', 'unknown_function')
+        return fn(*args, **kwargs)
     return wrapper
 
 # Простий ручний кеш замість lru_cache, щоб уникнути проблеми з Hashable Index
@@ -101,9 +96,6 @@ def main() -> None:
                 doc_texts[doc_id] = text
             if len(doc_texts) == len(top_doc_ids):
                 break
-
-        for rank, res in enumerate(top_results, 1):
-            snippet = get_snippet(doc_texts.get(res.doc_id, ""), query_words)
 
 if __name__ == "__main__":
     main()
