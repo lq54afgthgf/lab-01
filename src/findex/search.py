@@ -1,14 +1,8 @@
-import argparse
-import time
 import functools
-import pathlib
 
 from collections.abc import Callable
 from typing import ParamSpec, TypeVar
-from findex.store import open_index
 from findex.query import parse_query
-from findex.ranking import BM25, TfIdf, rank_documents
-from findex.corpus import iter_documents
 from findex.types import Index
 
 P = ParamSpec('P')
@@ -65,37 +59,3 @@ def get_snippet(text: str, query_terms: set[str], window: int = 80) -> str:
     )
 
     return f"...{highlighted}..."
-
-# --- ГОЛОВНИЙ СКРИПТ ---
-
-@timed
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("index_path", help="Шлях до файлу індексу")
-    parser.add_argument("corpus_path", help="Шлях до корпусу (для витягування сніпетів)")
-    parser.add_argument("query", help="Запит (напр., 'python AND (async OR await)')")
-    parser.add_argument("--scorer", choices=["bm25", "tfidf"], default="bm25")
-    args = parser.parse_args()
-
-    with open_index(args.index_path) as index:
-        matching_docs = set(evaluate_query_cached(args.query, index))
-        matching_docs = set(evaluate_query_cached(args.query, index))
-        if not matching_docs:
-            return
-
-        scorer: BM25 | TfIdf = BM25() if args.scorer == "bm25" else TfIdf()
-        query_words: set[str] = {w.strip('()"').lower() for w in args.query.split() if w not in ("AND", "OR", "NOT")}
-
-        top_results = rank_documents(query_words, matching_docs, index, scorer, top_k=5)
-
-        top_doc_ids: set[int] = {res.doc_id for res in top_results}
-        doc_texts: dict[int, str] = {}
-
-        for doc_id, text in enumerate(iter_documents(pathlib.Path(args.corpus_path))):
-            if doc_id in top_doc_ids:
-                doc_texts[doc_id] = text
-            if len(doc_texts) == len(top_doc_ids):
-                break
-
-if __name__ == "__main__":
-    main()
