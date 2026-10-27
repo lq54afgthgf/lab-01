@@ -4,7 +4,7 @@ import logging
 import typer
 
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 from typing import Literal
 
 from rich.console import Console
@@ -12,11 +12,10 @@ from rich.table import Table
 from rich.progress import track
 
 from findex.store import open_index, save_index
-from findex.query import parse_query
 from findex.ranking import BM25, TfIdf, rank_documents
 from findex.corpus import iter_documents
 from findex.search import get_snippet, evaluate_query_cached
-from findex.types import Index, DocMeta
+from findex.types import Index
 
 # Створюємо глобальні об'єкти
 app = typer.Typer(help="Findex: локальний рушій пошуку", add_completion=False)
@@ -102,7 +101,7 @@ def search(
             top_results = rank_documents(query_words, matching_docs, idx, scorer, top_k=5)
 
             top_doc_ids = {res.doc_id for res in top_results}
-            doc_texts = {}
+            doc_texts: dict[int, str] = {}
             for doc_id, text in enumerate(iter_documents(corpus_path)):
                 if doc_id in top_doc_ids:
                     doc_texts[doc_id] = text
