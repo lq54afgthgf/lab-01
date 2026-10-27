@@ -2,15 +2,16 @@ import sys
 import json
 import logging
 import typer
+import tracemalloc
 
+from collections import Counter
 from pathlib import Path
 from typing import Annotated
 from typing import Literal
-
 from rich.console import Console
 from rich.table import Table
 from rich.progress import track
-
+from findex.tokenize import tokenize
 from findex.store import open_index, save_index
 from findex.ranking import BM25, TfIdf, rank_documents
 from findex.corpus import iter_documents
@@ -41,35 +42,103 @@ def main(
     verbose: Annotated[int, typer.Option("-v", "--verbose", count=True, help="Рівень деталізації логів (до -vv)")] = 0
 ) -> None:
     setup_logging(verbose)
-
 @app.command()
-def index(
+def stats(
     corpus_path: Annotated[Path, typer.Argument(help="Шлях до папки з текстовими файлами")],
-    output_path: Annotated[Path, typer.Argument(help="Шлях для збереження індексу (.bin)")],
 ) -> None:
-    """Збирає індекс з текстових файлів та зберігає його на диск."""
-    logger.info(f"Початок збірки індексу з {corpus_path}...")
+    """Виводить статистику корпусу (Топ-50 слів та порівняння використання пам'яті)."""
+    logger.info(f"Збір статистики з {corpus_path}...")
 
     if not corpus_path.exists() or not corpus_path.is_dir():
         console.print(f"[red]Помилка: Папки '{corpus_path}' не існує.[/red]")
         raise typer.Exit(1)
 
-    # Примітивна заглушка збірки (замініть на ваш реальний білдер, якщо він є)
-    # Використовуємо смугу прогресу Rich
-    files = list(corpus_path.glob("*.txt"))
+    # --- ЖАДІБНИЙ ПІДХІД ---
+    console.print("[bold red]Обробка текстів (жадібне читання - list)...[/bold red]")
+    tracemalloc.start()
+
+    # Завантажуємо всі документи в оперативну пам'ять одразу
+    all_docs = list(iter_documents(corpus_path))
+    greedy_word_counts = Counter()
+
+    for doc_text in all_docs:
+        greedy_word_counts.update(tokenize(doc_text))
+
+    greedy_current, greedy_peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    # Видаляємо змінні, щоб звільнити пам'ять перед наступним тестом
+    del all_docs
+    del greedy_word_counts
+
+    # --- ЛІНИВИЙ ПІДХІД ---
+    console.print("[bold green]Обробка текстів (ліниве читання - generator)...[/bold green]")
+    tracemalloc.start()
+
+    lazy_word_counts = Counter()
+    # Читаємо по одному документу, не забиваючи пам'ять
+    for doc_text in iter_documents(corpus_path):
+        lazy_word_counts.update(tokenize(doc_text))
+
+    lazy_current, lazy_peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    # --- ВИВІД РЕЗУЛЬТАТІВ ---
+    # 1. Таблиця Топ-50
+    table_words = Table(title="Топ 50 найчастіших слів")
+    table_words.add_column("Слово", style="cyan")
+    table_words.add_column("Частота", justify="right", style="magenta")
+
+    for word, count in lazy_word_counts.most_common(50):
+        table_words.add_row(word, str(count))
+
+    console.print(table_words)
+
+    # 2. Таблиця порівняння пам'яті
+    console.print(f"\n[bold yellow]Порівняння використання пам'яті (tracemalloc):[/bold yellow]")
+    mem_table = Table(show_header=True, header_style="bold white")
+    mem_table.add_column("Підхід читання")
+    mem_table.add_column("Поточна пам'ять (кінець)", justify="right")
+    mem_table.add_column("Пікова пам'ять (максимум)", justify="right", style="bold red")
+
+    mem_table.add_row(
+        "Жадібний (List)",
+        f"{greedy_current / 10**6:.2f} MB",
+        f"{greedy_peak / 10**6:.2f} MB"
+    )
+    mem_table.add_row(
+        "Лінивий (Generator)",
+        f"{lazy_current / 10**6:.2f} MB",
+        f"{lazy_peak / 10**6:.2f} MB"
+    )
+
+    console.print(mem_table)
+
+@app.command()
+def index(
+    corpus_path: Annotated[Path, typer.Argument(help="Шлях до папки з текстовими файлами")],
+    index_path: Annotated[Path, typer.Argument(help="Шлях для збереження індексу (*.bin)")],
+) -> None:
+    """Будує інвертований індекс із вказаного корпусу та зберігає його на диск."""
+    logger.info(f"Початок побудови індексу з {corpus_path}...")
+
+    if not corpus_path.exists() or not corpus_path.is_dir():
+        console.print(f"[red]Помилка: Папки '{corpus_path}' не існує.[/red]")
+        raise typer.Exit(1)
+
     idx = Index()
 
-    for _ in track(files, description="[green]Токенізація та індексація..."):
-        # Тут має бути ваш реальний код додавання документів до індексу
-        pass
+    console.print("[green]Обробка текстів та побудова індексу...[/green]")
 
-    try:
-        save_index(idx, str(output_path))
-        logger.info(f"Індекс успішно збережено у {output_path}")
-        console.print("[bold green]Збірку індексу завершено![/bold green]")
-    except Exception as e:
-        console.print(f"[red]Помилка при збереженні індексу: {e}[/red]")
-        raise typer.Exit(1)
+    # Використовуємо метод класу Index через зручний метод add_document
+    for doc_id, text in track(enumerate(iter_documents(corpus_path)), description="Індексування..."):
+        tokens = list(tokenize(text))
+        # Заповнюємо метадані та постинг-листи автоматично
+        idx.add_document(doc_id=doc_id, tokens=tokens, path=str(corpus_path), title=f"Doc {doc_id}")
+
+    console.print(f"[green]Збереження індексу у файл {index_path}...[/green]")
+    save_index(idx, str(index_path))
+    console.print("[bold green]Індекс успішно збережено![/bold green]")
 
 @app.command()
 def search(
@@ -133,12 +202,6 @@ def search(
     except Exception as e:
         console.print(f"[red]Критична помилка пошуку: {e}[/red]")
         raise typer.Exit(1)
-
-@app.command()
-def stats() -> None:
-    """Виводить статистику (заглушка для команди stats)."""
-    logger.info("Виклик команди stats")
-    console.print("[blue]Тут буде статистика вашого рушія...[/blue]")
 
 if __name__ == "__main__":
     app()
