@@ -1,4 +1,5 @@
 import re
+
 from dataclasses import dataclass
 from findex.types import Index
 
@@ -6,7 +7,6 @@ class QueryNode:
     def evaluate(self, index: Index) -> set[int]:
         raise NotImplementedError
 
-    # Перевантаження операторів для зручності (наприклад: Term("a") | Term("b"))
     def __and__(self, other: 'QueryNode') -> 'QueryNode':
         return And(self, other)
 
@@ -42,7 +42,7 @@ class Or(QueryNode):
 class Not(QueryNode):
     child: QueryNode
     def evaluate(self, index: Index) -> set[int]:
-        all_docs = set(index.doc_meta.keys())
+        all_docs: set[int] = set(index.doc_meta.keys())
         return all_docs - self.child.evaluate(index)
 
 @dataclass(frozen=True)
@@ -53,20 +53,24 @@ class Phrase(QueryNode):
         for t in self.terms:
             if t not in index: return set()
 
-        # Знаходимо спільні документи для всіх слів фрази
-        docs = set.intersection(*[{p.doc_id for p in index[t]} for t in self.terms])
-        valid_docs = set()
+        sets_list: list[set[int]] = [{p.doc_id for p in index[t]} for t in self.terms]
+        if not sets_list:
+            return set()
+
+        docs: set[int] = set(sets_list[0]).intersection(*sets_list[1:])
+        valid_docs: set[int] = set()
 
         for doc_id in docs:
-            # Збираємо позиції кожного слова
-            pos_lists = []
+            pos_lists: list[tuple[int, ...]] = []
             for t in self.terms:
                 for p in index[t]:
                     if p.doc_id == doc_id:
                         pos_lists.append(p.positions or tuple())
                         break
 
-            # Шукаємо послідовність (pos, pos+1, pos+2, ...)
+            if not pos_lists:
+                continue
+
             for start_pos in pos_lists[0]:
                 is_match = True
                 for i in range(1, len(self.terms)):
@@ -79,45 +83,43 @@ class Phrase(QueryNode):
 
         return valid_docs
 
-# --- Рекурсивний спуск (Recursive Descent Parser) ---
-
 def parse_query(query: str) -> QueryNode:
-    # Токенізація: розбиваємо на фрази в лапках, дужки та окремі слова
     tokens = re.findall(r'"[^"]*"|\(|\)|AND|OR|NOT|[^\s()"]+', query)
     pos = 0
 
-    def peek():
+    def peek() -> str | None:
         return tokens[pos] if pos < len(tokens) else None
 
-    def consume():
+    def consume() -> str:
         nonlocal pos
+        if pos >= len(tokens):
+            return ""
         t = tokens[pos]
         pos += 1
         return t
 
-    def parse_or():
+    def parse_or() -> QueryNode:
         node = parse_and()
         while peek() == 'OR':
             consume()
             node = node | parse_and()
         return node
 
-    def parse_and():
+    def parse_and() -> QueryNode:
         node = parse_not()
-        # Неявний AND: якщо наступний токен не OR і не закриваюча дужка
         while peek() and peek() not in ('OR', ')'):
             if peek() == 'AND':
                 consume()
             node = node & parse_not()
         return node
 
-    def parse_not():
+    def parse_not() -> QueryNode:
         if peek() == 'NOT':
             consume()
             return ~parse_atom()
         return parse_atom()
 
-    def parse_atom():
+    def parse_atom() -> QueryNode:
         t = consume()
         if t == '(':
             node = parse_or()

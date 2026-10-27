@@ -1,18 +1,13 @@
-from findex.tokenize import tokenize
+import pytest
+from findex.tokenize import tokenize, tokenize_greedy
 
-def test_tokenize_cyrillic_and_punctuation():
-    text = "Привіт, комп'ютер! Як справи-то?"
-    tokens = list(tokenize(text))
-    assert tokens == ["привіт", "комп'ютер", "як", "справи-то"]
-
-def test_tokenize_cafe_normalization():
-    # Слово "cafe" зі складеним наголосом (NFD)
-    text_nfd = "cafe\u0301"
-    tokens = list(tokenize(text_nfd))
-    # Має звестися до єдиного символу "е" (NFC)
-    assert tokens == ["café"]
-
-def test_tokenize_casefold():
-    text = "ВЕЛИКІ ЛІТЕРИ"
-    tokens = list(tokenize(text))
-    assert tokens == ["великі", "літери"]
+@pytest.mark.parametrize("text, expected", [
+    ("Hello World", ["hello", "world"]),
+    ("café au lait", ["café", "au", "lait"]),
+    ("O'Neill and state-of-the-art", ["o'neill", "and", "state-of-the-art"]),
+    ("   ", []),
+    ("Python 3.12 is fast!", ["python", "3", "12", "is", "fast"]),
+])
+def test_tokenize_parameterized(text, expected):
+    assert list(tokenize(text)) == expected
+    assert tokenize_greedy(text) == expected

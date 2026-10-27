@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Generator
+from collections.abc import Iterator
 
-def iter_documents(directory_path: Path | str) -> Generator[str, None, None]:
+def iter_documents(directory_path: Path | str) -> Iterator[str]:
     """Лінивий генератор: читає файли по одному рядку за раз."""
     path = Path(directory_path)
     for file_path in path.rglob('*.txt'):
@@ -18,5 +18,7 @@ def get_documents_greedy(directory_path: Path | str) -> list[str]:
     Потрібна лише для порівняння витрат пам'яті.
     """
     path = Path(directory_path)
-    return [file_path.read_text(encoding='utf-8', errors='ignore')
-            for file_path in path.rglob('*.txt') if file_path.is_file()]
+    return [
+        file_path.read_text(encoding='utf-8', errors='ignore')
+        for file_path in path.rglob('*.txt') if file_path.is_file()
+    ]
