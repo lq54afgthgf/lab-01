@@ -59,7 +59,7 @@ def stats(
 
     # Завантажуємо всі документи в оперативну пам'ять одразу
     all_docs = list(iter_documents(corpus_path))
-    greedy_word_counts = Counter()
+    greedy_word_counts: Counter[str] = Counter()
 
     for doc_text in all_docs:
         greedy_word_counts.update(tokenize(doc_text))
@@ -75,7 +75,7 @@ def stats(
     console.print("[bold green]Обробка текстів (ліниве читання - generator)...[/bold green]")
     tracemalloc.start()
 
-    lazy_word_counts = Counter()
+    lazy_word_counts: Counter[str] = Counter()
     # Читаємо по одному документу, не забиваючи пам'ять
     for doc_text in iter_documents(corpus_path):
         lazy_word_counts.update(tokenize(doc_text))
