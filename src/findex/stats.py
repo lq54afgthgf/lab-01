@@ -31,9 +31,6 @@ def measure_pipeline(data_dir: Path, is_lazy: bool) -> None:
             tokens = tokenize_greedy(doc)
             token_count += len(tokens)
             term_frequencies.update(tokens)
-
-    elapsed_time = time.perf_counter() - start_time
-    _, peak_mem = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
 def main() -> None:
