@@ -3,7 +3,12 @@ import json
 import logging
 import typer
 import tracemalloc
+import pickle
+import concurrent.futures
+import multiprocessing
+import time
 
+from enum import Enum
 from collections import Counter
 from pathlib import Path
 from typing import Annotated
@@ -17,6 +22,11 @@ from findex.ranking import BM25, TfIdf, rank_documents
 from findex.corpus import iter_documents
 from findex.search import get_snippet, evaluate_query_cached
 from findex.types import Index
+
+class ExecutorType(str, Enum):
+    serial = "serial"
+    threads = "threads"
+    processes = "processes"
 
 # Створюємо глобальні об'єкти
 app = typer.Typer(help="Findex: локальний рушій пошуку", add_completion=False)
@@ -42,6 +52,19 @@ def main(
     verbose: Annotated[int, typer.Option("-v", "--verbose", count=True, help="Рівень деталізації логів (до -vv)")] = 0
 ) -> None:
     setup_logging(verbose)
+
+
+# --- НОВА ФУНКЦІЯ РІВНЯ МОДУЛЯ (MAP) ---
+def build_partial(chunk_paths: list[Path], start_doc_id: int) -> Index:
+    """Будує частковий індекс для заданого списку файлів."""
+    partial_idx = Index()
+    for offset, path in enumerate(chunk_paths):
+        doc_id = start_doc_id + offset
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        tokens = list(tokenize(text))
+        partial_idx.add_document(doc_id=doc_id, tokens=tokens, path=str(path), title=f"Doc {doc_id}")
+    return partial_idx
+
 @app.command()
 def stats(
     corpus_path: Annotated[Path, typer.Argument(help="Шлях до папки з текстовими файлами")],
@@ -118,26 +141,79 @@ def stats(
 def index(
     corpus_path: Annotated[Path, typer.Argument(help="Шлях до папки з текстовими файлами")],
     index_path: Annotated[Path, typer.Argument(help="Шлях для збереження індексу (*.bin)")],
+    workers: Annotated[int, typer.Option("--workers", help="Кількість воркерів")] = 1,
+    executor: Annotated[ExecutorType, typer.Option("--executor", help="Тип екзекутора")] = ExecutorType.serial,
 ) -> None:
+
     """Будує інвертований індекс із вказаного корпусу та зберігає його на диск."""
+    if hasattr(sys, '_is_gil_enabled'):
+        console.print(f"[bold blue]Статус GIL (sys._is_gil_enabled): {sys._is_gil_enabled()}[/bold blue]")
+    else:
+        console.print("[bold blue]Статус GIL: звичайна збірка (GIL увімкнено)[/bold blue]")
+
     logger.info(f"Початок побудови індексу з {corpus_path}...")
 
     if not corpus_path.exists() or not corpus_path.is_dir():
         console.print(f"[red]Помилка: Папки '{corpus_path}' не існує.[/red]")
         raise typer.Exit(1)
 
-    idx = Index()
+    all_paths = list(corpus_path.rglob("*.txt"))
+    if not all_paths:
+        console.print("[red]Не знайдено текстових файлів.[/red]")
+        raise typer.Exit(1)
 
-    console.print("[green]Обробка текстів та побудова індексу...[/green]")
+    # Розбиваємо файли на шматки (чанки) для воркерів
+    import math
+    chunk_size = math.ceil(len(all_paths) / workers) if workers > 0 else len(all_paths)
+    if chunk_size == 0: chunk_size = 1
+    chunks = [all_paths[i:i + chunk_size] for i in range(0, len(all_paths), chunk_size)]
 
-    # Використовуємо метод класу Index через зручний метод add_document
-    for doc_id, text in track(enumerate(iter_documents(corpus_path)), description="Індексування..."):
-        tokens = list(tokenize(text))
-        # Заповнюємо метадані та постинг-листи автоматично
-        idx.add_document(doc_id=doc_id, tokens=tokens, path=str(corpus_path), title=f"Doc {doc_id}")
+    console.print(f"[green]Знайдено {len(all_paths)} файлів. Чанків: {len(chunks)}. Режим: {executor.value}, Воркерів: {workers}[/green]")
 
-    console.print(f"[green]Збереження індексу у файл {index_path}...[/green]")
-    save_index(idx, str(index_path))
+    t0 = time.perf_counter()
+    partials = []
+
+    # Вибір стратегії виконання
+    if executor == ExecutorType.serial:
+        start_id = 0
+        for chunk in chunks:
+            partials.append(build_partial(chunk, start_doc_id=start_id))
+            start_id += len(chunk)
+    else:
+        PoolClass = concurrent.futures.ThreadPoolExecutor if executor == ExecutorType.threads else concurrent.futures.ProcessPoolExecutor
+        kwargs = {"max_workers": workers}
+
+        # Безпечний запуск для процесів (уникаємо fork)
+        if executor == ExecutorType.processes:
+            kwargs["mp_context"] = multiprocessing.get_context("spawn")
+
+        with PoolClass(**kwargs) as pool:
+            futures = []
+            start_id = 0
+            for chunk in chunks:
+                futures.append(pool.submit(build_partial, chunk, start_id))
+                start_id += len(chunk)
+
+            # as_completed дозволяє ловити помилки у воркерах одразу, як вони падають
+            for fut in concurrent.futures.as_completed(futures):
+                try:
+                    partials.append(fut.result())
+                except Exception as e:
+                    console.print(f"[bold red]Воркер впав з помилкою: {e}[/bold red]")
+                    raise typer.Exit(1)
+
+    t1 = time.perf_counter()
+
+    console.print(f"[green]Виконуємо merge ({len(partials)} часткових індексів)...[/green]")
+    final_index = Index()
+    for p in partials:
+        final_index.merge(p)
+
+    t2 = time.perf_counter()
+
+    console.print(f"[bold yellow]Час збирання: {t1 - t0:.2f} сек. | Час merge: {t2 - t1:.2f} сек.[/bold yellow]")
+    console.print(f"[green]Збереження індексу у {index_path}...[/green]")
+    save_index(final_index, str(index_path))
     console.print("[bold green]Індекс успішно збережено![/bold green]")
 
 @app.command()
