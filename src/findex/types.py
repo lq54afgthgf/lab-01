@@ -78,3 +78,12 @@ class Index(collections.abc.Mapping[str, list[Posting]]):
 
             for term, freq in term_freqs.items():
                 self.postings[term].append(Posting(doc_id=doc_id, tf=freq, positions=None))
+
+    def merge(self, other: "Index") -> None:
+        self.doc_meta.update(other.doc_meta)
+        self.doc_lengths.update(other.doc_lengths)
+        for term, postings in other.postings.items():
+            self.postings[term].extend(postings)
+            # Щоб пошук працював коректно, постинг-листи мають бути відсортовані за doc_id.
+            # Це важливо, якщо результати від воркерів надходять непослідовно:
+            self.postings[term].sort(key=lambda p: p.doc_id)
