@@ -7,6 +7,8 @@ import pickle
 import concurrent.futures
 import multiprocessing
 import time
+import asyncio
+import urllib.parse
 
 from enum import Enum
 from collections import Counter
@@ -15,6 +17,7 @@ from typing import Annotated
 from typing import Literal
 from rich.console import Console
 from rich.table import Table
+from rich.live import Live
 from rich.progress import track
 from findex.tokenize import tokenize
 from findex.store import open_index, save_index
@@ -22,6 +25,7 @@ from findex.ranking import BM25, TfIdf, rank_documents
 from findex.corpus import iter_documents
 from findex.search import get_snippet, evaluate_query_cached
 from findex.types import Index
+from findex.crawl import crawl
 
 class ExecutorType(str, Enum):
     serial = "serial"
@@ -59,10 +63,25 @@ def build_partial(chunk_paths: list[Path], start_doc_id: int) -> Index:
     """Будує частковий індекс для заданого списку файлів."""
     partial_idx = Index()
     for offset, path in enumerate(chunk_paths):
-        doc_id = start_doc_id + offset
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        tokens = list(tokenize(text))
-        partial_idx.add_document(doc_id=doc_id, tokens=tokens, path=str(path), title=f"Doc {doc_id}")
+        # Логіка для Лаби 6 (читаємо JSONL)
+        if path.is_file() and path.suffix == ".jsonl":
+            import json
+            with open(path, "r", encoding="utf-8") as f:
+                for idx, line in enumerate(f):
+                    if not line.strip(): continue
+                    record = json.loads(line)
+                    text = record.get("text", "")
+                    doc_id = start_doc_id + idx
+                    tokens = list(tokenize(text))
+                    title = record.get("title", f"Doc {doc_id}")
+                    partial_idx.add_document(doc_id=doc_id, tokens=tokens, path=str(path), title=title)
+        # Стара логіка для Лаби 5 (без змін)
+        else:
+            doc_id = start_doc_id + offset
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            tokens = list(tokenize(text))
+            partial_idx.add_document(doc_id=doc_id, tokens=tokens, path=str(path), title=f"Doc {doc_id}")
+
     return partial_idx
 
 @app.command()
@@ -72,7 +91,7 @@ def stats(
     """Виводить статистику корпусу (Топ-50 слів та порівняння використання пам'яті)."""
     logger.info(f"Збір статистики з {corpus_path}...")
 
-    if not corpus_path.exists() or not corpus_path.is_dir():
+    if not corpus_path.exists():
         console.print(f"[red]Помилка: Папки '{corpus_path}' не існує.[/red]")
         raise typer.Exit(1)
 
@@ -153,13 +172,16 @@ def index(
 
     logger.info(f"Початок побудови індексу з {corpus_path}...")
 
-    if not corpus_path.exists() or not corpus_path.is_dir():
-        console.print(f"[red]Помилка: Папки '{corpus_path}' не існує.[/red]")
+    if not corpus_path.exists():
+        console.print(f"[red]Помилка: Шляху '{corpus_path}' не існує.[/red]")
         raise typer.Exit(1)
 
-    all_paths = list(corpus_path.rglob("*.txt"))
-    if not all_paths:
-        console.print("[red]Не знайдено текстових файлів.[/red]")
+    if corpus_path.is_file() and corpus_path.suffix == ".jsonl":
+        all_paths = [corpus_path]
+    elif corpus_path.is_dir():
+        all_paths = list(corpus_path.rglob("*.txt"))
+    else:
+        console.print(f"[red]Помилка: '{corpus_path}' не є ні папкою, ні .jsonl файлом.[/red]")
         raise typer.Exit(1)
 
     # Розбиваємо файли на шматки (чанки) для воркерів
@@ -278,6 +300,85 @@ def search(
     except Exception as e:
         console.print(f"[red]Критична помилка пошуку: {e}[/red]")
         raise typer.Exit(1)
+
+@app.command(name="crawl")
+def crawl_cmd(
+    seed: str = typer.Argument(..., help="Початковий URL для краулінгу"),
+    max_pages: int = typer.Option(200, help="Максимальна кількість сторінок"),
+    concurrency: int = typer.Option(10, help="Кількість одночасних воркерів"),
+    per_host: int = typer.Option(2, help="Ліміт запитів на один хост"),
+    out: Path = typer.Option(Path("data/crawl.jsonl"), help="Шлях до вихідного JSONL файлу"),
+    allowed_domain: str = typer.Option(None, help="Додатковий дозволений домен")
+):
+    """
+    Запуск асинхронного краулера для збору сторінок у JSONL.
+    """
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    parsed_seed = urllib.parse.urlparse(seed)
+    domains = [parsed_seed.netloc]
+    if allowed_domain:
+        domains.append(allowed_domain)
+
+    async def run_crawler():
+        fetched_count = 0
+        error_count = 0
+        start_time = time.monotonic()
+        log_path = Path("crawl.log")
+
+        def generate_table(q_depth=0, active_reqs=0):
+            elapsed = max(0.1, time.monotonic() - start_time)
+            pages_per_sec = fetched_count / elapsed
+
+            table = Table(title="[bold cyan]Findex Async Crawler Live Status[/bold cyan]")
+            table.add_column("Метрика", style="cyan", no_wrap=True)
+            table.add_column("Значення", style="magenta")
+
+            table.add_row("Зібрано сторінок", str(fetched_count))
+            table.add_row("Сторінок / сек", f"{pages_per_sec:.2f}")
+            table.add_row("Активних запитів", str(active_reqs))
+            table.add_row("Глибина черги", str(q_depth))
+            table.add_row("Помилок / збоїв", str(error_count))
+            return table
+
+        with open(out, "w", encoding="utf-8") as jsonl_f, \
+             open(log_path, "w", encoding="utf-8") as log_f, \
+             Live(generate_table(), refresh_per_second=4) as live:
+
+            async for page in crawl(
+                [seed],
+                max_pages=max_pages,
+                concurrency=concurrency,
+                per_host=per_host,
+                allowed_domains=domains
+            ):
+                fetched_count += 1
+                if page.error:
+                    error_count += 1
+
+                # Записуємо успішні сторінки у JSONL
+                if page.status == 200 and page.text:
+                    record = {
+                        "url": page.url,
+                        "title": page.title,
+                        "text": page.text
+                    }
+                    jsonl_f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+                # Записуємо лог у crawl.log
+                log_f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(page.fetched_at))}] Status: {page.status} | URL: {page.url} | Error: {page.error}\n")
+                log_f.flush()
+
+                live.update(generate_table(page.queue_depth, page.active_tasks))
+
+        print(f"\n[bold green]Краулінг завершено![/bold green] Зібрано: {fetched_count}. Файл збережено у {out}.")
+
+    # --- ЗАМІР ПАМ'ЯТІ (PEAK RSS) ---
+    tracemalloc.start()
+    asyncio.run(run_crawler())
+    current, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    print(f"[bold yellow]Peak RSS: {peak / 10**6:.2f} MB[/bold yellow]")
 
 if __name__ == "__main__":
     app()
