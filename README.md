@@ -42,4 +42,28 @@
 
 ![Графік прискорення](speedup.png)
 
+### Інструкція з запуску
+
+**1. Побудова індексу**
+# Багатопроцесорний запуск
+`bash`
+uv run findex index data/ index.bin --executor processes --workers 4
+
+# Багатопотоковий запуск
+`bash`
+uv run findex index data/ index.bin --executor threads --workers 8
+
+# Послідовний запуск
+`bash`
+uv run findex index data/ index.bin --executor serial
+
+**2. Замір метрик (Wall time, Peak RSS):**
+`bash`
+/usr/bin/time -v uv run findex index data/ index.bin --executor processes --workers 4
+
+**3. Тестування без GIL (Python 3.13t):**
+`bash`
+uv run --python 3.13t findex index data/ index.bin --executor threads --workers 8
+
+
 
