@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Findex Search</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.5; }
+        .search-box { display: flex; gap: 10px; margin-bottom: 2rem; }
+        input[type="text"] { flex-grow: 1; padding: 10px; font-size: 1.1rem; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 20px; font-size: 1.1rem; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result-item { margin-bottom: 1.5rem; }
+        .result-item h3 { margin: 0 0 0.5rem 0; font-size: 1.2rem; }
+        .result-item a { color: #1a0dab; text-decoration: none; }
+        .result-item a:hover { text-decoration: underline; }
+        .score { font-size: 0.9rem; color: #70757a; margin-left: 10px; }
+        .snippet { margin: 0; color: #4d5156; }
+        b { background-color: #fff3cd; padding: 0 2px; border-radius: 2px; }
+        .pagination { margin-top: 2rem; display: flex; gap: 15px; align-items: center; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Findex 🔎</h1>
+    
+    <form class="search-box" method="GET" action="/">
+        <input type="text" name="q" value="{{ query }}" placeholder="Що будемо шукати?" required autofocus>
+        <button type="submit">Шукати</button>
+    </form>
+
+    {% if error %}
+        <p class="error">Помилка пошуку: {{ error }}</p>
+    {% endif %}
+
+    {% if results is not none %}
+        <p style="color: #70757a; font-size: 0.9rem;">
+            Знайдено результатів: {{ total }} (за {{ "%.1f"|format(took_ms) }} мс)
+        </p>
+
+        {% for item in results %}
+            <div class="result-item">
+                <h3>
+                    <a href="/docs/{{ item.doc_id }}">{{ item.title }}</a>
+                    <span class="score">[Score: {{ "%.4f"|format(item.score) }}]</span>
+                </h3>
+                <p class="snippet">{{ item.snippet | safe }}</p>
+            </div>
+        {% else %}
+            <p>За вашим запитом нічого не знайдено.</p>
+        {% endfor %}
+
+        {% if total > 10 %}
+            <div class="pagination">
+                {% if page > 1 %}
+                    <a href="/?q={{ query }}&page={{ page - 1 }}">⬅️ Попередня</a>
+                {% endif %}
+                <span>Сторінка {{ page }}</span>
+                {% if (page * 10) < total %}
+                    <a href="/?q={{ query }}&page={{ page + 1 }}">Наступна ➡️</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    {% endif %}
+</body>
+</html>

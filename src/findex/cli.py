@@ -380,5 +380,17 @@ def crawl_cmd(
     tracemalloc.stop()
     print(f"[bold yellow]Peak RSS: {peak / 10**6:.2f} MB[/bold yellow]")
 
+@app.command(name="serve")
+def serve(
+    port: int = typer.Option(8000, help="Порт для веб-сервера"),
+    workers: int = typer.Option(1, help="Кількість воркерів Uvicorn")
+) -> None:
+    """Запускає веб-інтерфейс та API пошуку."""
+    import uvicorn
+    console.print(f"[bold green]Запуск веб-сервера на порту {port} ({workers} воркерів)...[/bold green]")
+
+    # Запускаємо ASGI-застосунок (який ми створимо на наступному кроці)
+    uvicorn.run("findex.web.app:app", host="0.0.0.0", port=port, workers=workers)
+
 if __name__ == "__main__":
     app()
