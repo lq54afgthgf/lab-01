@@ -1,10 +1,13 @@
 # Етап 1: Збірка залежностей за uv.lock
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
-
+FROM python:3.13-slim-bookworm
 WORKDIR /app
-ENV UV_COMPILE_BYTECODE=1
-ENV UV_LINK_MODE=copy
-ENV UV_PYTHON_DOWNLOADS=never
+
+# Копіюємо пакети, вихідний код ТА файл індексу
+COPY --from=builder /app/.venv/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /app/src /app/src
+COPY index.bin /app/index.bin
+
+RUN useradd -m appuser
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project --no-dev
