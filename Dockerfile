@@ -27,4 +27,4 @@ USER appuser
 ENV PYTHONPATH="/app/src"
 EXPOSE 8000
 
-CMD ["/usr/local/bin/python3", "-m", "findex.cli", "serve", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/usr/local/bin/python3", "-m", "findex.cli", "serve", "--port", "8000"]
