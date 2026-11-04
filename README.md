@@ -1,6 +1,6 @@
 # Лаб 4. Типи, тести, пакування і CLI
 
-[![CI](https://github.com/lq54afgthgf/findex/actions/workflows/ci.yml/badge.svg)] 
+[![CI](https://github.com/lq54afgthgf/lab-01/actions/workflows/ci.yml/badge.svg)] 
 
 ## Опис
 Четвертий етап розробки пошукового рушія `findex`. Проєкт перетворено на повноцінний незалежний Python-пакет із підтримкою суворої типізації (`pyright strict`), розширеним тестовим покриттям на `pytest` (включно з property-based тестами через `Hypothesis` та бенчмарками), а також сучасним CLI-інтерфейсом на базі `typer` та `rich` з підтримкою `logging` у `stderr`, структурованого виводу `--json` у `stdout` і вивіреними кодами виходу при помилках.
