@@ -21,6 +21,15 @@ class SearchResult:
 class Scorer(Protocol):
     def __call__(self, term: str, posting: Posting, index: Index) -> float: ...
 
+    def score_array(
+        self,
+        tfs: npt.NDArray[np.int32],
+        doc_ids: npt.NDArray[np.int32],
+        doc_len_arr: npt.NDArray[np.int32],
+        num_docs: int,
+        avg_dl: float,
+    ) -> npt.NDArray[np.float64]: ...
+
 
 class TfIdf:
     def __call__(self, term: str, posting: Posting, index: Index) -> float:
@@ -169,7 +178,6 @@ def rank_documents(
     matched_scores = np.round(scores[nonzero_ids], 12)
     matched_order = first_seen[nonzero_ids]
 
-    # Відбір топ-k через np.argpartition (сортуємо за (-score, first_seen), як у heapq.nlargest)
     sort_keys = np.rec.fromarrays([-matched_scores, matched_order], names="neg_score,order")
     if num_matched > top_k:
         part_idx = np.argpartition(sort_keys, top_k - 1)[:top_k]
