@@ -1,21 +1,26 @@
-import pytest
 import tempfile
-
 from pathlib import Path
-from hypothesis import given, strategies as st
-from findex.types import Index, DocMeta, Posting
-from findex.store import save_index, load_index
+
+import pytest
+from hypothesis import given
+from hypothesis import strategies as st
+
 from findex.query import parse_query
+from findex.store import load_index, save_index
+from findex.types import DocMeta, Index, Posting
 
 # Стратегія для генерації випадкових списків doc_id
-doc_ids_strategy = st.lists(st.integers(min_value=1, max_value=1000), unique=True, min_size=1, max_size=50)
+doc_ids_strategy = st.lists(
+    st.integers(min_value=1, max_value=1000), unique=True, min_size=1, max_size=50
+)
+
 
 def create_mock_index(term1_docs, term2_docs):
     """Допоміжна функція для створення тестового індексу."""
     idx = Index()
     idx.postings = {
         "apple": [Posting(doc_id=d, tf=1, positions=(0,)) for d in sorted(term1_docs)],
-        "banana": [Posting(doc_id=d, tf=1, positions=(0,)) for d in sorted(term2_docs)]
+        "banana": [Posting(doc_id=d, tf=1, positions=(0,)) for d in sorted(term2_docs)],
     }
 
     all_docs = set(term1_docs) | set(term2_docs)
@@ -23,6 +28,7 @@ def create_mock_index(term1_docs, term2_docs):
     idx.doc_lengths = {d: 10 for d in all_docs}
     idx.avg_doc_length = 10.0
     return idx
+
 
 @given(doc_ids_strategy, doc_ids_strategy)
 def test_property_postings_always_sorted(term1_docs, term2_docs):
@@ -33,6 +39,7 @@ def test_property_postings_always_sorted(term1_docs, term2_docs):
         postings = idx[term]
         doc_ids = [p.doc_id for p in postings]
         assert doc_ids == sorted(doc_ids), f"Постінги для '{term}' не відсортовані!"
+
 
 @pytest.mark.slow
 @given(doc_ids_strategy, doc_ids_strategy)
@@ -51,6 +58,7 @@ def test_property_merge_matches_set_operations(term1_docs, term2_docs):
 
     node_not = parse_query("apple AND NOT banana")
     assert node_not.evaluate(idx) == (set_apple - set_banana)
+
 
 @pytest.mark.slow
 def test_property_load_save_is_idempotent():

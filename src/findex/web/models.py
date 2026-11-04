@@ -1,10 +1,12 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
 
 class SearchResult(BaseModel):
     doc_id: int
     title: str
     score: float
     snippet: str
+
 
 class SearchResponse(BaseModel):
     query: str

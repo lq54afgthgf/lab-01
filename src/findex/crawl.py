@@ -1,14 +1,15 @@
 import asyncio
 import time
 import urllib.parse
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import AsyncIterator
 
 import httpx
 from selectolax.lexbor import LexborHTMLParser
 
 from .fetch import fetch
 from .robots import RobotsCache
+
 
 @dataclass
 class Page:
@@ -21,6 +22,7 @@ class Page:
     queue_depth: int = 0
     active_tasks: int = 0
 
+
 def canonicalize(url: str) -> str:
     parsed = urllib.parse.urlparse(url)
     scheme = parsed.scheme.lower()
@@ -32,17 +34,18 @@ def canonicalize(url: str) -> str:
 
     return urllib.parse.urlunparse((scheme, netloc, path, parsed.params, query, ""))
 
+
 async def crawl(
     seeds: list[str],
     *,
     max_pages: int,
     concurrency: int,
     per_host: int,
-    allowed_domains: list[str]
+    allowed_domains: list[str],
 ) -> AsyncIterator[Page]:
 
-    frontier = asyncio.Queue()
-    seen = set()
+    frontier: asyncio.Queue[str] = asyncio.Queue()
+    seen: set[str] = set()
 
     for seed in seeds:
         can_url = canonicalize(seed)
@@ -53,12 +56,12 @@ async def crawl(
     host_sems: dict[str, asyncio.Semaphore] = {}
     last_fetch_time: dict[str, float] = {}
 
-    output_queue = asyncio.Queue()
+    output_queue: asyncio.Queue[Page | None] = asyncio.Queue()
     active_tasks = 0
     robots = RobotsCache()
 
     # Функція worker знаходиться СЕРЕДИНИ crawl, тому nonlocal працює
-    async def worker(client: httpx.AsyncClient):
+    async def worker(client: httpx.AsyncClient) -> None:
         nonlocal active_tasks
         try:
             while True:
@@ -78,21 +81,24 @@ async def crawl(
                     if host not in host_sems:
                         host_sems[host] = asyncio.Semaphore(per_host)
 
-                    async with global_sem:
-                        async with host_sems[host]:
-                            now = time.monotonic()
-                            delay = max(0.0, 0.5 - (now - last_fetch_time.get(host, 0.0)))
-                            if delay > 0:
-                                await asyncio.sleep(delay)
+                    async with global_sem, host_sems[host]:
+                        now = time.monotonic()
+                        delay = max(0.0, 0.5 - (now - last_fetch_time.get(host, 0.0)))
+                        if delay > 0:
+                            await asyncio.sleep(delay)
 
-                            last_fetch_time[host] = time.monotonic()
-                            result = await fetch(client, url)
+                        last_fetch_time[host] = time.monotonic()
+                        result = await fetch(client, url)
 
                     page = Page(
-                        url=url, title="", text="", fetched_at=time.time(),
-                        status=result.status, error=result.error,
+                        url=url,
+                        title="",
+                        text="",
+                        fetched_at=time.time(),
+                        status=result.status,
+                        error=result.error,
                         queue_depth=frontier.qsize(),
-                        active_tasks=active_tasks
+                        active_tasks=active_tasks,
                     )
                     if result.status == 200 and result.text:
                         tree = LexborHTMLParser(result.text)

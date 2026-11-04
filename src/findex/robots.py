@@ -1,9 +1,11 @@
 import urllib.parse
 import urllib.robotparser
+
 import httpx
 
 # Обов'язково чесний User-Agent із посиланням для зв'язку (вимога етики краулерів)
 USER_AGENT = "FindexCrawler/1.0 (+https://github.com/Tserelenko/findex)"
+
 
 class RobotsCache:
     def __init__(self, user_agent: str = USER_AGENT):
@@ -24,10 +26,10 @@ class RobotsCache:
                     parser.parse(resp.text.splitlines())
                 else:
                     # Якщо 404 або інше - дозволяємо все
-                    parser.allow_all = True
+                    parser.allow_all = True  # type: ignore[attr-defined] # атрибут CPython urllib.robotparser
             except Exception:
                 # При помилці мережі також дозволяємо
-                parser.allow_all = True
+                parser.allow_all = True  # type: ignore[attr-defined] # атрибут CPython urllib.robotparser
 
             # Обов'язково повідомляємо парсер, що він був оновлений!
             parser.modified()

@@ -2,7 +2,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from findex.query import And, Not, Or, Phrase, Term, parse_query
+from findex.query import And, Phrase, Term, parse_query
 from findex.types import DocMeta, Index, Posting
 
 
@@ -80,9 +80,6 @@ def test_parse_query_ast_tree_equality():
     """Перевірка рекурсивного спуску порівнянням AST-дерев (Лаб 3)."""
     parsed = parse_query('python AND (async OR await) NOT java "event loop"')
     expected = (
-        Term("python")
-        & (Term("async") | Term("await"))
-        & ~Term("java")
-        & Phrase(("event", "loop"))
+        Term("python") & (Term("async") | Term("await")) & ~Term("java") & Phrase(("event", "loop"))
     )
     assert parsed == expected

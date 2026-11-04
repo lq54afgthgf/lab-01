@@ -105,9 +105,7 @@ class And(QueryNode):
         return self.left.evaluate(index) & self.right.evaluate(index)
 
     def evaluate_merge(self, index: Index) -> list[int]:
-        return merge_and(
-            self.left.evaluate_merge(index), self.right.evaluate_merge(index)
-        )
+        return merge_and(self.left.evaluate_merge(index), self.right.evaluate_merge(index))
 
 
 @dataclass(frozen=True)
@@ -119,9 +117,7 @@ class Or(QueryNode):
         return self.left.evaluate(index) | self.right.evaluate(index)
 
     def evaluate_merge(self, index: Index) -> list[int]:
-        return merge_or(
-            self.left.evaluate_merge(index), self.right.evaluate_merge(index)
-        )
+        return merge_or(self.left.evaluate_merge(index), self.right.evaluate_merge(index))
 
 
 @dataclass(frozen=True)

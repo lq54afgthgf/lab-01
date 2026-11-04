@@ -1,11 +1,12 @@
 import argparse
 import functools
+import os
+import re
 import time
 import tracemalloc
 from collections.abc import Callable
 from typing import Literal, ParamSpec, TypeVar
 
-import re
 from findex.query import evaluate_boolean_query, parse_query
 from findex.ranking import BM25, TfIdf, rank_documents
 from findex.store import open_index
@@ -14,8 +15,6 @@ from findex.types import Index
 P = ParamSpec("P")
 R = TypeVar("R")
 
-
-import os
 
 TIMED_VERBOSE = os.environ.get("FINDEX_TIMED", "0") == "1"
 

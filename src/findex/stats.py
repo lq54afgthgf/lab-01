@@ -1,10 +1,11 @@
 import sys
 import tracemalloc
-
 from collections import Counter
 from pathlib import Path
-from findex.corpus import iter_documents, get_documents_greedy
+
+from findex.corpus import get_documents_greedy, iter_documents
 from findex.tokenize import tokenize, tokenize_greedy
+
 
 def measure_pipeline(data_dir: Path, is_lazy: bool) -> None:
     tracemalloc.start()
@@ -32,9 +33,11 @@ def measure_pipeline(data_dir: Path, is_lazy: bool) -> None:
 
     # Вивід результатів ТУТ, всередині measure_pipeline
     _, peak = tracemalloc.get_traced_memory()
-    print(f"[{'Lazy' if is_lazy else 'Greedy'}] Docs: {doc_count}, Tokens: {token_count}, Peak Memory: {peak / 10**6:.3f} MB")
+    print(
+        f"[{'Lazy' if is_lazy else 'Greedy'}] Docs: {doc_count}, Tokens: {token_count}, Peak Memory: {peak / 10**6:.3f} MB"
+    )
 
-# Виводимо топ 50 слів (лише один раз, для лінивого підходу)
+    # Виводимо топ 50 слів (лише один раз, для лінивого підходу)
     if is_lazy:
         print("\n--- Топ 50 найчастіших слів ---")
         for word, count in term_frequencies.most_common(50):
@@ -42,6 +45,7 @@ def measure_pipeline(data_dir: Path, is_lazy: bool) -> None:
         print("-" * 31 + "\n")
 
     tracemalloc.stop()
+
 
 def main() -> None:
     # Читаємо шлях до папки з аргументів або беремо "data" за замовчуванням
@@ -53,6 +57,7 @@ def main() -> None:
 
     measure_pipeline(data_dir, is_lazy=True)
     measure_pipeline(data_dir, is_lazy=False)
+
 
 if __name__ == "__main__":
     main()

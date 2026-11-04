@@ -52,3 +52,11 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/findex"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501", "BLE001", "B008", "ASYNC230", "SIM117", "PYI025", "UP047", "LOG014", "RUF059"]

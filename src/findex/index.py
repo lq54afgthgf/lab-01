@@ -12,17 +12,11 @@ from findex.types import Index
 
 
 def build_index_cli() -> None:
-    parser = argparse.ArgumentParser(
-        description="Побудова інвертованого індексу (Лаб 2)"
-    )
+    parser = argparse.ArgumentParser(description="Побудова інвертованого індексу (Лаб 2)")
     parser.add_argument("data_dir", help="Папка або файл із текстовим корпусом")
     parser.add_argument("--out", required=True, help="Файл для збереження індексу")
-    parser.add_argument(
-        "--positions", action="store_true", help="Зберігати позиції токенів"
-    )
-    parser.add_argument(
-        "--max-docs", type=int, default=None, help="Ліміт документів (опційно)"
-    )
+    parser.add_argument("--positions", action="store_true", help="Зберігати позиції токенів")
+    parser.add_argument("--max-docs", type=int, default=None, help="Ліміт документів (опційно)")
     args = parser.parse_args()
 
     tracemalloc.start()

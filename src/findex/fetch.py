@@ -1,8 +1,10 @@
 import asyncio
-import time
 import random
+import time
 from dataclasses import dataclass
+
 import httpx
+
 
 @dataclass
 class FetchResult:
@@ -11,6 +13,7 @@ class FetchResult:
     error: str = ""
     bytes_downloaded: int = 0
     elapsed: float = 0.0
+
 
 async def fetch(client: httpx.AsyncClient, url: str) -> FetchResult:
     """Завантажує сторінку з підтримкою повторів (до 3 разів) при збоях."""
@@ -27,7 +30,11 @@ async def fetch(client: httpx.AsyncClient, url: str) -> FetchResult:
                 # Повторюємо лише для 429 (Too Many Requests) або 5xx (Server Errors)
                 if response.status_code == 429 or response.status_code >= 500:
                     if attempt == max_retries - 1:
-                        return FetchResult(status=response.status_code, error=f"HTTP {response.status_code}", elapsed=elapsed)
+                        return FetchResult(
+                            status=response.status_code,
+                            error=f"HTTP {response.status_code}",
+                            elapsed=elapsed,
+                        )
 
                     # Перевіряємо, чи сказав сервер, скільки чекати
                     retry_after = response.headers.get("Retry-After")
@@ -35,7 +42,7 @@ async def fetch(client: httpx.AsyncClient, url: str) -> FetchResult:
                         delay = float(retry_after)
                     else:
                         # Exponential backoff + jitter (щоб воркери не "били" сервер одночасно)
-                        delay = (2 ** attempt) + random.uniform(0.1, 1.0)
+                        delay = (2**attempt) + random.uniform(0.1, 1.0)
 
                     await asyncio.sleep(delay)
                     continue
@@ -45,7 +52,7 @@ async def fetch(client: httpx.AsyncClient, url: str) -> FetchResult:
                     status=response.status_code,
                     text=response.text,
                     bytes_downloaded=len(response.content),
-                    elapsed=elapsed
+                    elapsed=elapsed,
                 )
 
         except (TimeoutError, httpx.RequestError) as e:
@@ -53,7 +60,7 @@ async def fetch(client: httpx.AsyncClient, url: str) -> FetchResult:
             if attempt == max_retries - 1:
                 return FetchResult(status=0, error=type(e).__name__, elapsed=elapsed)
 
-            delay = (2 ** attempt) + random.uniform(0.1, 1.0)
+            delay = (2**attempt) + random.uniform(0.1, 1.0)
             await asyncio.sleep(delay)
 
     return FetchResult(status=0, error="Unknown Error")

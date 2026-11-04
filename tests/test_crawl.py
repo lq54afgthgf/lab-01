@@ -1,8 +1,10 @@
-import pytest
 import httpx
+import pytest
+
 from findex.crawl import canonicalize
-from findex.robots import RobotsCache
 from findex.fetch import fetch
+from findex.robots import RobotsCache
+
 
 # 1. Тестуємо канонізацію URL (регістр, сортування параметрів, видалення якорів)
 def test_canonicalize():
@@ -15,6 +17,7 @@ def test_canonicalize():
     # Перевірка видалення фрагментів (якорів #)
     assert canonicalize("http://test.com/index.html#section1") == "http://test.com/index.html"
 
+
 # 2. Тестуємо поведінку RobotsCache, коли robots.txt відсутній (повертає 404)
 @pytest.mark.asyncio
 async def test_robots_allowed_when_404(httpx_mock):
@@ -26,6 +29,7 @@ async def test_robots_allowed_when_404(httpx_mock):
         # Оскільки файл не знайдено, краулінг має бути дозволений
         is_allowed = await robots.allowed("https://example.com/some/path", client)
         assert is_allowed is True
+
 
 # 3. Тестуємо базовий fetch для успішного запиту
 @pytest.mark.asyncio

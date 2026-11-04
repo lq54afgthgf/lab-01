@@ -19,10 +19,7 @@ def save_index(index: Index, path: str, fmt: str = "auto") -> None:
                 for k, m in index.doc_meta.items()
             },
             "postings": {
-                term: [
-                    [p.doc_id, p.tf, list(p.positions) if p.positions else None]
-                    for p in plist
-                ]
+                term: [[p.doc_id, p.tf, list(p.positions) if p.positions else None] for p in plist]
                 for term, plist in index.postings.items()
             },
         }
@@ -49,9 +46,7 @@ def load_index(path: str, fmt: str = "auto") -> Index:
         idx = Index()
         idx.doc_lengths = {int(k): int(v) for k, v in raw["doc_lengths"].items()}
         idx.doc_meta = {
-            int(k): DocMeta(
-                length=v["length"], path=v["path"], title=v.get("title", "")
-            )
+            int(k): DocMeta(length=v["length"], path=v["path"], title=v.get("title", ""))
             for k, v in raw["doc_meta"].items()
         }
         for term, plist in raw["postings"].items():
@@ -69,9 +64,9 @@ def load_index(path: str, fmt: str = "auto") -> Index:
         return pickle.load(f)
 
 
-def to_compact_arrays(index: Index) -> dict[str, tuple[array, array]]:
+def to_compact_arrays(index: Index) -> dict[str, tuple[array[int], array[int]]]:
     """Перетворює постінги на компактні C-масиви array('I') (unsigned int32)."""
-    compact: dict[str, tuple[array, array]] = {}
+    compact: dict[str, tuple[array[int], array[int]]] = {}
     for term, plist in index.postings.items():
         doc_ids = array("I", (p.doc_id for p in plist))
         tfs = array("I", (p.tf for p in plist))

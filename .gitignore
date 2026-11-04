@@ -12,3 +12,21 @@ wheels/
 index.bin
 data/
 *.bin
+*.bin
+*.json
+*.npy
+*.idx
+
+# Large generated index & embedding files
+*.bin
+*.idx
+*.npy
+index.json
+results.json
+data/
+*.bin
+*.npy
+*.idx
+.coverage
+index.json
+results.json
