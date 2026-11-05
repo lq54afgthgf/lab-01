@@ -19,7 +19,6 @@ from rich.live import Live
 from rich.table import Table
 
 from findex.corpus import iter_documents
-from findex.crawl import crawl
 from findex.ranking import BM25, TfIdf, rank_documents
 from findex.search import evaluate_query_cached, get_snippet
 from findex.semantic import (
@@ -221,7 +220,7 @@ def index(
     workers: Annotated[int, typer.Option("--workers", help="Кількість воркерів")] = 1,
     executor: Annotated[
         ExecutorType, typer.Option("--executor", help="Тип екзекутора")
-    ] = ExecutorType.serial,
+    ] = ExecutorType.processes,
 ) -> None:
     """Будує інвертований індекс із вказаного корпусу та зберігає його на диск."""
     if not corpus_path.exists():
@@ -441,6 +440,8 @@ def crawl_cmd(
             open(log_path, "w", encoding="utf-8") as log_f,
             Live(generate_table(), refresh_per_second=4) as live,
         ):
+            from findex.crawl import crawl
+
             async for page in crawl(
                 [seed],
                 max_pages=max_pages,
