@@ -1,6 +1,10 @@
 version = 1
 revision = 3
 requires-python = ">=3.12"
+resolution-markers = [
+    "python_full_version == '3.13.*'",
+    "python_full_version != '3.13.*'",
+]
 
 [[package]]
 name = "annotated-doc"
@@ -376,17 +380,17 @@ name = "findex"
 version = "0.7.0"
 source = { editable = "." }
 dependencies = [
-    { name = "fastapi", marker = "python_full_version != '3.13.*'" },
+    { name = "fastapi" },
     { name = "httpx" },
     { name = "jinja2" },
     { name = "matplotlib" },
     { name = "pydantic", marker = "python_full_version != '3.13.*'" },
-    { name = "pydantic-settings", marker = "python_full_version != '3.13.*'" },
+    { name = "pydantic-settings" },
     { name = "rich" },
-    { name = "selectolax", marker = "python_full_version != '3.13.*'" },
+    { name = "selectolax" },
     { name = "sentence-transformers", marker = "python_full_version != '3.13.*'" },
     { name = "typer" },
-    { name = "uvicorn", marker = "python_full_version != '3.13.*'" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -404,16 +408,20 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "fastapi", specifier = ">=0.162.0" },
     { name = "fastapi", marker = "python_full_version != '3.13.*'", specifier = ">=0.162.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "pydantic", marker = "python_full_version != '3.13.*'", specifier = ">=2.14.2" },
+    { name = "pydantic-settings", specifier = ">=2.16.2" },
     { name = "pydantic-settings", marker = "python_full_version != '3.13.*'", specifier = ">=2.16.2" },
     { name = "rich", specifier = ">=13.7.1" },
+    { name = "selectolax", specifier = ">=1.0.2" },
     { name = "selectolax", marker = "python_full_version != '3.13.*'", specifier = ">=1.0.2" },
     { name = "sentence-transformers", marker = "python_full_version != '3.13.*'", specifier = ">=6.2.0" },
     { name = "typer", specifier = ">=0.12.0" },
+    { name = "uvicorn", specifier = ">=0.54.0" },
     { name = "uvicorn", marker = "python_full_version != '3.13.*'", specifier = ">=0.54.0" },
 ]
 
@@ -2160,7 +2168,7 @@ version = "1.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
-    { name = "typing-extensions", marker = "python_full_version < '3.14'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/48/bb/3d8757f21e9a53d9035c9eb039a777047139a16bfdbedfc7a58241c3d914/starlette-1.10.0.tar.gz", hash = "sha256:b8399098d4c1e3522734f7235dc79b1fc967f96cf139c81e0fa30479e0685f9b", size = 2734356, upload-time = "2026-10-24T15:04:12.342Z" }
 wheels = [
