@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/lq54afgthgf/lab-01/actions/workflows/ci.yml/badge.svg)]
 
-**Публічна адреса розгорнутого сервісу (Render):** https://lab-01-edfh.onrender.com/
+**Публічна адреса розгорнутого сервісу (Render):** https://lab-01-edfh.onrender.com
 
 ---
 
