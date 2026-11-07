@@ -1,0 +1,32 @@
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+/data/
+# Virtual environments
+.venv
+index.bin
+data/
+*.bin
+*.bin
+*.json
+*.npy
+*.idx
+
+# Large generated index & embedding files
+*.bin
+*.idx
+*.npy
+index.json
+results.json
+data/
+*.bin
+*.npy
+*.idx
+.coverage
+index.json
+results.json

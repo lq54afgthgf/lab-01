@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Findex Search v1.0.0</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 820px; margin: 40px auto; padding: 0 20px; line-height: 1.5; color: #222; }
+        form { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+        input[type="text"] { flex: 1; min-width: 260px; padding: 10px 14px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; }
+        select, button { padding: 10px 16px; font-size: 16px; border-radius: 6px; border: 1px solid #ccc; background: #f8f9fa; cursor: pointer; }
+        button { background: #2563eb; color: #fff; border-color: #2563eb; font-weight: 600; }
+        .meta { color: #666; font-size: 14px; margin-bottom: 16px; }
+        .result { padding: 14px 0; border-bottom: 1px solid #eee; }
+        .title { font-size: 18px; font-weight: 600; color: #1d4ed8; text-decoration: none; }
+        .score { font-size: 13px; color: #059669; margin-left: 8px; }
+        .snippet { color: #444; margin-top: 4px; font-size: 15px; }
+        .error { color: #dc2626; background: #fef2f2; padding: 12px; border-radius: 6px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Findex Search <small style="font-size:14px;color:#666;">v1.0.0</small></h1>
+    <form action="/" method="get">
+        <input type="text" name="q" value="{{ query }}" placeholder="Введіть пошуковий запит..." required>
+        <select name="mode">
+            <option value="keyword" {% if mode == 'keyword' %}selected{% endif %}>Keyword (BM25)</option>
+            <option value="semantic" {% if mode == 'semantic' %}selected{% endif %}>Semantic (MiniLM)</option>
+            <option value="hybrid" {% if mode == 'hybrid' %}selected{% endif %}>Hybrid (RRF)</option>
+        </select>
+        <button type="submit">Знайти</button>
+    </form>
+
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if results is not none %}
+        <div class="meta">Знайдено результатів: <b>{{ total }}</b> (режим: <b>{{ mode }}</b>, час: <b>{{ took_ms }} мс</b>)</div>
+        {% if results %}
+            {% for r in results %}
+                <div class="result">
+                    <a class="title" href="/docs/{{ r.doc_id }}">#{{ r.doc_id }} — {{ r.title }}</a>
+                    <span class="score">score: {{ r.score }}</span>
+                    <div class="snippet">{{ r.snippet }}</div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>За вашим запитом нічого не знайдено.</p>
+        {% endif %}
+    {% endif %}
+</body>
+</html>
