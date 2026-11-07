@@ -10,13 +10,11 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project --no-dev
 
 COPY src ./src
-RUN uv sync --frozen --no-editable --no-dev
 
 # Етап 2: Фінальний образ
 FROM python:3.13-slim-bookworm
 WORKDIR /app
 
-# Копіюємо ТІЛЬКИ пакети, вихідний код ТА файл індексу
 COPY --from=builder /app/.venv/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /app/src /app/src
 COPY index.bin /app/index.bin
