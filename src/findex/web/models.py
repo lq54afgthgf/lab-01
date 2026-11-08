@@ -31,4 +31,4 @@ class StatsResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    version: str = "0.7.0"
+    version: str = "1.0.0"

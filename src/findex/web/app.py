@@ -80,7 +80,7 @@ def health(request: Request) -> HealthResponse | JSONResponse:
             status_code=503,
             content={"status": "unavailable", "detail": "Index not loaded"},
         )
-    return HealthResponse(status="ok", version="0.7.0")
+    return HealthResponse(status="ok", version="1.0.0")
 
 
 @app.get("/stats", response_model=StatsResponse)
